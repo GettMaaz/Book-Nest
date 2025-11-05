@@ -1,9 +1,4 @@
-import { PrismaClient } from '@prisma/client'
+// Using better-sqlite3 wrapper instead of Prisma Client due to engine binary issues
+import { dbClient } from './db'
 
-const globalForPrisma = globalThis as unknown as {
-  prisma: PrismaClient | undefined
-}
-
-export const prisma = globalForPrisma.prisma ?? new PrismaClient()
-
-if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = prisma
+export const prisma = dbClient as any
