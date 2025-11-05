@@ -14,12 +14,44 @@ BookNest je moderní full-stack webová aplikace pro milovníky knih. Umožňuje
 
 ## ✨ Funkce
 
-- ✅ Uživatelská registrace a přihlášení
-- ✅ Databáze knih s možností vyhledávání
-- ✅ Osobní wishlist pro správu četby
-- ✅ Diskuzní fórum rozdělené podle žánrů
-- ✅ Správa žánrů knih
-- ✅ Responzivní design
+### 🔐 Autentizace & Uživatelé
+- ✅ Registrace a přihlášení s NextAuth.js
+- ✅ Profil uživatele se statistikami
+- ✅ Počítadla knih, příspěvků a diskuzí
+
+### 📚 Databáze knih
+- ✅ Procházení knih v responzivní mřížce
+- ✅ Vyhledávání podle názvu a autora
+- ✅ Stránkování (12 knih na stránku)
+- ✅ Detail knihy s kompletními informacemi
+- ✅ Žánrová kategorizace (8 žánrů)
+
+### ⭐ Wishlist
+- ✅ Přidávání/odebírání knih do wishlistu
+- ✅ Statusy: Chci přečíst, Právě čtu, Přečteno, Odloženo
+- ✅ Filtrace podle statusu
+- ✅ Srdíčkové tlačítko na každé knize
+
+### 💬 Diskuzní fórum
+- ✅ Rozdělení podle žánrů knih
+- ✅ Vytváření nových diskuzí (jen pro přihlášené)
+- ✅ Přidávání příspěvků do diskuzí
+- ✅ Připínání a zamykání diskuzí
+- ✅ Počítadla příspěvků
+
+### 📊 Statistiky
+- ✅ Celkové statistiky platformy
+- ✅ Nejoblíbenější knihy (podle wishlistů)
+- ✅ Nejaktivnější diskuze
+- ✅ Přehled žánrů s počty
+
+### 🎨 UX/UI
+- ✅ Responzivní design (mobile-first)
+- ✅ Tailwind CSS styling
+- ✅ Navigace s uživatelským menu
+- ✅ Breadcrumbs navigace
+- ✅ Loading states
+- ✅ Modální okna pro formuláře
 
 ## 📋 Předpoklady
 
@@ -132,24 +164,26 @@ Aplikace používá následující modely:
 
 ### Autentizace
 - `POST /api/auth/register` - Registrace nového uživatele
-- `POST /api/auth/signin` - Přihlášení (NextAuth)
-- `POST /api/auth/signout` - Odhlášení
+- `POST /api/auth/[...nextauth]` - NextAuth endpoints
 
 ### Knihy
-- `GET /api/books` - Získat seznam knih (s filtry)
-- `POST /api/books` - Vytvořit novou knihu (vyžaduje přihlášení)
+- `GET /api/books?search=...` - Seznam knih s vyhledáváním
+- `POST /api/books` - Vytvořit novou knihu
 
 ### Žánry
-- `GET /api/genres` - Získat všechny žánry
-- `POST /api/genres` - Vytvořit nový žánr (vyžaduje přihlášení)
+- `GET /api/genres` - Všechny žánry s počty
+- `POST /api/genres` - Vytvořit nový žánr
 
 ### Wishlist
-- `GET /api/wishlist` - Získat wishlist aktuálního uživatele
-- `POST /api/wishlist` - Přidat knihu do wishlistu
+- `GET /api/wishlist` - Wishlist aktuálního uživatele
+- `POST /api/wishlist` - Přidat do wishlistu
+- `DELETE /api/wishlist/[bookId]` - Odebrat z wishlistu
+- `GET /api/wishlist/check/[bookId]` - Zkontrolovat stav
 
-### Diskuze
-- `GET /api/discussions` - Získat diskuze (s filtry)
-- `POST /api/discussions` - Vytvořit novou diskuzi (vyžaduje přihlášení)
+### Diskuze & Příspěvky
+- `GET /api/discussions?genreId=...` - Diskuze podle žánru
+- `POST /api/discussions` - Vytvořit diskuzi
+- `POST /api/posts` - Přidat příspěvek
 
 ## 📁 Struktura projektu
 
@@ -235,24 +269,30 @@ npm run prisma:generate
 PORT=3001 npm run dev
 ```
 
-## 📝 Další kroky
+## 🎯 Implementované funkce
 
-1. Implementovat stránky pro:
-   - Detail knihy
-   - Seznam žánrů
-   - Detail diskuze
-   - Profil uživatele
+✅ **Fáze 1-4**: Kompletní základ aplikace
+- SQLite databáze s better-sqlite3
+- 20 testovacích knih, 4 uživatelé
+- Všechny hlavní stránky (/books, /wishlist, /discussions)
+- API endpoints pro všechny operace
 
-2. Přidat další funkce:
-   - Hodnocení knih
-   - Komentáře v diskuzích
-   - Vyhledávání
-   - Paginace
-   - Upload obrázků
+✅ **Fáze 5-10**: Rozšířené funkce
+- Profil uživatele s statistikami
+- Statistiky platformy
+- Vyhledávání a filtrace
+- Diskuzní fórum podle žánrů
 
-3. Nasadit na production:
-   - Vercel (doporučeno pro Next.js)
-   - Railway/Render pro databázi
+## 📝 Možná vylepšení
+
+- 🔹 Hodnocení a recenze knih (hvězdičky, komentáře)
+- 🔹 Upload vlastních avatarů a cover obrázků
+- 🔹 Admin panel pro správu obsahu
+- 🔹 Notifikace při nových příspěvcích
+- 🔹 Doporučovací systém podle žánrů
+- 🔹 Dark mode
+- 🔹 Exportování wishlistu (CSV, PDF)
+- 🔹 Integrace s knihovnami (API)
 
 ## 📄 Licence
 
