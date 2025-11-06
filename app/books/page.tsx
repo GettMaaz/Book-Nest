@@ -1,115 +1,62 @@
-import { db } from '@/lib/db'
+'use client'
+
+import { useEffect, useState } from 'react'
 import Link from 'next/link'
+import { useSearchParams, useRouter } from 'next/navigation'
 import { BookCard } from '@/components/BookCard'
 
-interface PageProps {
-  searchParams: { page?: string; search?: string; sort?: string; genre?: string }
-}
+export default function BooksPage() {
+  const router = useRouter()
+  const searchParams = useSearchParams()
+  const [books, setBooks] = useState<any[]>([])
+  const [genres, setGenres] = useState<any[]>([])
+  const [totalPages, setTotalPages] = useState(1)
+  const [totalBooks, setTotalBooks] = useState(0)
+  const [isLoading, setIsLoading] = useState(true)
 
-export default async function BooksPage({ searchParams }: PageProps) {
-  const page = Number(searchParams.page) || 1
-  const search = searchParams.search || ''
-  const sortBy = searchParams.sort || 'newest'
-  const genreFilter = searchParams.genre || ''
-  const perPage = 12
-  const skip = (page - 1) * perPage
+  const page = Number(searchParams.get('page')) || 1
+  const search = searchParams.get('search') || ''
+  const sortBy = searchParams.get('sort') || 'newest'
+  const genreFilter = searchParams.get('genre') || ''
 
-  // Sestavit SQL dotaz s řazením
-  let query = `
-    SELECT b.*,
-           COUNT(DISTINCT w.id) as wishlist_count
-    FROM books b
-    LEFT JOIN wishlists w ON w.bookId = b.id
-  `
+  useEffect(() => {
+    fetchBooks()
+    fetchGenres()
+  }, [page, search, sortBy, genreFilter])
 
-  const params: any[] = []
-  const whereClauses: string[] = []
+  const fetchBooks = async () => {
+    setIsLoading(true)
+    try {
+      const params = new URLSearchParams()
+      params.set('page', String(page))
+      if (search) params.set('search', search)
+      if (sortBy) params.set('sort', sortBy)
+      if (genreFilter) params.set('genre', genreFilter)
 
-  // Vyhledávání
-  if (search) {
-    whereClauses.push('(b.title LIKE ? OR b.author LIKE ?)')
-    params.push(`%${search}%`, `%${search}%`)
+      const response = await fetch(`/api/books?${params.toString()}`)
+      const data = await response.json()
+
+      setBooks(data.books || [])
+      setTotalPages(data.totalPages || 1)
+      setTotalBooks(data.totalBooks || 0)
+    } catch (error) {
+      console.error('Error fetching books:', error)
+      setBooks([])
+    } finally {
+      setIsLoading(false)
+    }
   }
 
-  // Filtr podle žánru
-  if (genreFilter) {
-    whereClauses.push(`EXISTS (
-      SELECT 1 FROM book_genres bg
-      INNER JOIN genres g ON g.id = bg.genreId
-      WHERE bg.bookId = b.id AND g.slug = ?
-    )`)
-    params.push(genreFilter)
+  const fetchGenres = async () => {
+    try {
+      const response = await fetch('/api/genres')
+      const data = await response.json()
+      setGenres(data || [])
+    } catch (error) {
+      console.error('Error fetching genres:', error)
+    }
   }
 
-  if (whereClauses.length > 0) {
-    query += ' WHERE ' + whereClauses.join(' AND ')
-  }
-
-  query += ' GROUP BY b.id'
-
-  // Řazení
-  switch (sortBy) {
-    case 'title':
-      query += ' ORDER BY b.title ASC'
-      break
-    case 'popular':
-      query += ' ORDER BY wishlist_count DESC, b.title ASC'
-      break
-    case 'oldest':
-      query += ' ORDER BY b.createdAt ASC'
-      break
-    case 'newest':
-    default:
-      query += ' ORDER BY b.createdAt DESC'
-      break
-  }
-
-  // Pagination
-  query += ` LIMIT ${perPage} OFFSET ${skip}`
-
-  const books = db.prepare(query).all(...params)
-
-  // Přidat žánry ke knihám
-  const booksWithGenres = books.map((book: any) => ({
-    ...book,
-    genres: db.prepare(`
-      SELECT g.* FROM genres g
-      INNER JOIN book_genres bg ON bg.genreId = g.id
-      WHERE bg.bookId = ?
-    `).all(book.id).map((g: any) => ({ genre: g }))
-  }))
-
-  // Počet knih celkem
-  let countQuery = 'SELECT COUNT(DISTINCT b.id) as count FROM books b'
-  if (genreFilter) {
-    countQuery += ` INNER JOIN book_genres bg ON bg.bookId = b.id
-                    INNER JOIN genres g ON g.id = bg.genreId`
-  }
-
-  const countWhereClauses: string[] = []
-  const countParams: any[] = []
-
-  if (search) {
-    countWhereClauses.push('(b.title LIKE ? OR b.author LIKE ?)')
-    countParams.push(`%${search}%`, `%${search}%`)
-  }
-
-  if (genreFilter) {
-    countWhereClauses.push('g.slug = ?')
-    countParams.push(genreFilter)
-  }
-
-  if (countWhereClauses.length > 0) {
-    countQuery += ' WHERE ' + countWhereClauses.join(' AND ')
-  }
-
-  const totalBooks = db.prepare(countQuery).get(...countParams) as any
-  const totalPages = Math.ceil(totalBooks.count / perPage)
-
-  // Získat všechny žánry pro filtr
-  const genres = db.prepare('SELECT * FROM genres ORDER BY name ASC').all()
-
-  // Sestavit URL parametry
   const buildUrl = (newParams: Record<string, string>) => {
     const params = new URLSearchParams()
     if (newParams.page) params.set('page', newParams.page)
@@ -124,7 +71,7 @@ export default async function BooksPage({ searchParams }: PageProps) {
       {/* Header */}
       <div className="mb-8">
         <h1 className="text-4xl font-bold text-gray-900 mb-4">Knihy</h1>
-        <p className="text-gray-600">Procházejte naši kolekci {totalBooks.count} knih</p>
+        <p className="text-gray-600">Procházejte naši kolekci {totalBooks} knih</p>
       </div>
 
       {/* Search & Filters */}
@@ -154,7 +101,7 @@ export default async function BooksPage({ searchParams }: PageProps) {
             <label className="text-sm font-medium text-gray-700">Řadit podle:</label>
             <select
               value={sortBy}
-              onChange={(e) => window.location.href = buildUrl({ sort: e.target.value, page: '1' })}
+              onChange={(e) => router.push(buildUrl({ sort: e.target.value, page: '1' }))}
               className="input py-2 min-w-[200px]"
             >
               <option value="newest">Nejnovější</option>
@@ -169,11 +116,11 @@ export default async function BooksPage({ searchParams }: PageProps) {
             <label className="text-sm font-medium text-gray-700">Žánr:</label>
             <select
               value={genreFilter}
-              onChange={(e) => window.location.href = buildUrl({ genre: e.target.value, page: '1' })}
+              onChange={(e) => router.push(buildUrl({ genre: e.target.value, page: '1' }))}
               className="input py-2 min-w-[200px]"
             >
               <option value="">Všechny žánry</option>
-              {(genres as any[]).map((genre: any) => (
+              {genres.map((genre: any) => (
                 <option key={genre.id} value={genre.slug}>
                   {genre.name}
                 </option>
@@ -207,7 +154,7 @@ export default async function BooksPage({ searchParams }: PageProps) {
           {genreFilter && (
             <div className="flex items-center gap-2 px-3 py-1 bg-primary-100 text-primary-700 rounded-full text-sm">
               <span>
-                Žánr: {(genres as any[]).find((g: any) => g.slug === genreFilter)?.name}
+                Žánr: {genres.find((g: any) => g.slug === genreFilter)?.name}
               </span>
               <a
                 href={buildUrl({ genre: '', page: '1' })}
@@ -220,8 +167,13 @@ export default async function BooksPage({ searchParams }: PageProps) {
         </div>
       )}
 
-      {/* Books Grid */}
-      {booksWithGenres.length === 0 ? (
+      {/* Loading State */}
+      {isLoading ? (
+        <div className="text-center py-12">
+          <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div>
+          <p className="text-gray-600 mt-4">Načítání knih...</p>
+        </div>
+      ) : books.length === 0 ? (
         <div className="text-center py-12">
           <p className="text-gray-600 text-lg">Žádné knihy nenalezeny</p>
           {(search || genreFilter) && (
@@ -233,7 +185,7 @@ export default async function BooksPage({ searchParams }: PageProps) {
       ) : (
         <>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 mb-8">
-            {booksWithGenres.map((book: any) => (
+            {books.map((book: any) => (
               <BookCard key={book.id} book={book} />
             ))}
           </div>
@@ -252,7 +204,6 @@ export default async function BooksPage({ searchParams }: PageProps) {
 
               <div className="flex items-center gap-2">
                 {Array.from({ length: Math.min(totalPages, 10) }, (_, i) => {
-                  // Zobrazit max 10 stránek
                   let pageNum = i + 1
                   if (totalPages > 10) {
                     if (page <= 5) {
