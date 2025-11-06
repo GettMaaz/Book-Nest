@@ -1,4 +1,4 @@
-import { prisma } from '@/lib/prisma'
+import { db } from '@/lib/db'
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import { getServerSession } from 'next-auth'
@@ -13,36 +13,54 @@ interface PageProps {
 export default async function DiscussionDetailPage({ params }: PageProps) {
   const session = await getServerSession(authOptions)
 
-  const discussion = await prisma.discussion.findUnique({
-    where: { slug: params.discussionSlug },
-    include: {
-      user: {
-        select: {
-          id: true,
-          name: true,
-          image: true,
-        },
-      },
-      genre: true,
-      posts: {
-        include: {
-          user: {
-            select: {
-              id: true,
-              name: true,
-              image: true,
-            },
-          },
-        },
-        orderBy: {
-          createdAt: 'asc',
-        },
-      },
-    },
-  })
+  // Get discussion by slug
+  const discussion = db.prepare(`
+    SELECT d.*,
+           u.id as user_id, u.name as user_name, u.image as user_image,
+           g.id as genre_id, g.name as genre_name, g.slug as genre_slug
+    FROM discussions d
+    LEFT JOIN users u ON d.userId = u.id
+    LEFT JOIN genres g ON d.genreId = g.id
+    WHERE d.slug = ?
+  `).get(params.discussionSlug) as any
 
   if (!discussion) {
     notFound()
+  }
+
+  // Get posts for this discussion
+  const posts = db.prepare(`
+    SELECT p.*,
+           u.id as user_id, u.name as user_name, u.image as user_image
+    FROM posts p
+    LEFT JOIN users u ON p.userId = u.id
+    WHERE p.discussionId = ?
+    ORDER BY p.createdAt ASC
+  `).all(discussion.id) as any[]
+
+  // Transform data to match the expected structure
+  const discussionData = {
+    ...discussion,
+    user: {
+      id: discussion.user_id,
+      name: discussion.user_name,
+      image: discussion.user_image,
+    },
+    genre: {
+      id: discussion.genre_id,
+      name: discussion.genre_name,
+      slug: discussion.genre_slug,
+    },
+    posts: posts.map(post => ({
+      id: post.id,
+      content: post.content,
+      createdAt: post.createdAt,
+      user: {
+        id: post.user_id,
+        name: post.user_name,
+        image: post.user_image,
+      },
+    })),
   }
 
   return (
@@ -57,21 +75,21 @@ export default async function DiscussionDetailPage({ params }: PageProps) {
           href={`/discussions/${params.genreSlug}`}
           className="hover:text-primary-600"
         >
-          {(discussion as any).genre.name}
+          {discussionData.genre.name}
         </Link>
         {' '}/{' '}
-        <span className="text-gray-900">{(discussion as any).title}</span>
+        <span className="text-gray-900">{discussionData.title}</span>
       </div>
 
       {/* Discussion Header */}
       <div className="card mb-6">
         <div className="flex items-center gap-2 mb-4">
-          {(discussion as any).isPinned && (
+          {discussionData.isPinned && (
             <span className="px-2 py-1 bg-yellow-100 text-yellow-800 text-xs font-semibold rounded">
               📌 Připnuto
             </span>
           )}
-          {(discussion as any).isLocked && (
+          {discussionData.isLocked && (
             <span className="px-2 py-1 bg-gray-100 text-gray-800 text-xs font-semibold rounded">
               🔒 Zamčeno
             </span>
@@ -80,48 +98,48 @@ export default async function DiscussionDetailPage({ params }: PageProps) {
             href={`/discussions/${params.genreSlug}`}
             className="px-2 py-1 bg-primary-100 text-primary-700 text-xs font-medium rounded hover:bg-primary-200 transition-colors"
           >
-            {(discussion as any).genre.name}
+            {discussionData.genre.name}
           </Link>
         </div>
 
         <h1 className="text-3xl font-bold text-gray-900 mb-4">
-          {(discussion as any).title}
+          {discussionData.title}
         </h1>
 
-        {(discussion as any).description && (
+        {discussionData.description && (
           <p className="text-gray-700 mb-4 whitespace-pre-line">
-            {(discussion as any).description}
+            {discussionData.description}
           </p>
         )}
 
         <div className="flex items-center gap-4 text-sm text-gray-500 pt-4 border-t">
           <div className="flex items-center gap-2">
-            {(discussion as any).user.image ? (
+            {discussionData.user.image ? (
               <img
-                src={(discussion as any).user.image}
-                alt={(discussion as any).user.name}
+                src={discussionData.user.image}
+                alt={discussionData.user.name}
                 className="w-8 h-8 rounded-full"
               />
             ) : (
               <div className="w-8 h-8 rounded-full bg-primary-100 flex items-center justify-center">
                 <span className="text-sm font-semibold text-primary-600">
-                  {(discussion as any).user.name?.charAt(0) || '?'}
+                  {discussionData.user.name?.charAt(0) || '?'}
                 </span>
               </div>
             )}
             <div>
-              <p className="font-medium text-gray-900">{(discussion as any).user.name}</p>
-              <p className="text-xs">Založeno {formatDate(new Date((discussion as any).createdAt))}</p>
+              <p className="font-medium text-gray-900">{discussionData.user.name}</p>
+              <p className="text-xs">Založeno {formatDate(new Date(discussionData.createdAt))}</p>
             </div>
           </div>
 
           <span>•</span>
 
           <span>
-            {(discussion as any).posts.length}{' '}
-            {(discussion as any).posts.length === 1
+            {discussionData.posts.length}{' '}
+            {discussionData.posts.length === 1
               ? 'příspěvek'
-              : (discussion as any).posts.length < 5
+              : discussionData.posts.length < 5
               ? 'příspěvky'
               : 'příspěvků'}
           </span>
@@ -130,7 +148,7 @@ export default async function DiscussionDetailPage({ params }: PageProps) {
 
       {/* Posts */}
       <div className="space-y-4 mb-8">
-        {(discussion as any).posts.map((post: any, index: number) => (
+        {discussionData.posts.map((post: any, index: number) => (
           <div key={post.id} className="card">
             <div className="flex items-start gap-4">
               {post.user.image ? (
@@ -164,7 +182,7 @@ export default async function DiscussionDetailPage({ params }: PageProps) {
           </div>
         ))}
 
-        {(discussion as any).posts.length === 0 && (
+        {discussionData.posts.length === 0 && (
           <div className="card text-center py-8">
             <p className="text-gray-600">Zatím nejsou žádné příspěvky</p>
           </div>
@@ -172,9 +190,9 @@ export default async function DiscussionDetailPage({ params }: PageProps) {
       </div>
 
       {/* Add Post Form */}
-      {session && !(discussion as any).isLocked ? (
-        <AddPostForm discussionId={(discussion as any).id} />
-      ) : (discussion as any).isLocked ? (
+      {session && !discussionData.isLocked ? (
+        <AddPostForm discussionId={discussionData.id} />
+      ) : discussionData.isLocked ? (
         <div className="card text-center py-8">
           <div className="text-4xl mb-2">🔒</div>
           <p className="text-gray-600">Tato diskuze je zamčená a nelze do ní přidávat příspěvky</p>
